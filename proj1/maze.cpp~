@@ -1,0 +1,256 @@
+#include <stdexcept>
+#include "maze.h"
+
+Maze::Maze(int ncell) {
+  if (ncell < 1) {
+    throw std::invalid_argument("Maze::Maze(): ncell must be >= 1");
+  }
+
+  _ncell = ncell;
+  _maze = new cell_t[_ncell];
+}
+
+Maze::~Maze() {
+  // IMPLEMENT DESTRUCTOR
+
+  //delete the maze
+  delete [] _maze;
+
+}
+
+void Maze::readFile(std::string fileName) {
+  int numCells;
+  int cell, n1, n2, n3, n4; 
+  std::ifstream dataFile;
+  
+  dataFile.open(fileName);
+
+  if (dataFile.is_open()) {
+    dataFile >> numCells;
+    this->reset(numCells);
+
+    for (int i = 0; i < numCells; i++) {
+      dataFile >> cell >> n1 >> n2 >> n3 >> n4;
+      this->insert(cell_t(cell, n1, n2, n3, n4));
+    }
+  }
+}
+
+int Maze::getNcell() const {
+  return _ncell;
+}
+
+void Maze::reset(int ncell) {
+  if (ncell < 1) {
+    throw std::invalid_argument("Maze::reset(): ncell must be >= 1");
+  }
+
+  if (_maze != nullptr) {
+    delete [] _maze;
+  }
+  
+  _ncell = ncell;
+  _maze = new cell_t[_ncell];
+}
+
+void Maze::insert(cell_t cell) {
+  if (_maze == nullptr) {
+    throw std::domain_error("Maze::insert(): attempt to insert into uninitialized Maze object");
+  }
+  if (cell.cellNum < 0 || cell.cellNum >= _ncell) {
+    throw std::invalid_argument("Maze:insert(): invalid cell number");
+  }
+  _maze[cell.cellNum] = cell;
+}
+  
+cell_t Maze::retrieve(int nc) const {
+  if (_maze == nullptr) {
+    throw std::domain_error("Maze::retrieve(): attempt to retrieve from an uninitialized Maze object");
+  }
+  if (nc < 0 || nc >= _ncell) {
+    throw std::invalid_argument("Maze:retrieve(): invalid cell index");
+  }
+  return _maze[nc];
+}
+
+void Maze::dump() const {
+
+  std::cout << "[*] Dumping the maze cells..." << std::endl;
+  
+  for (int i = 0; i < _ncell; i++) {
+    int nc = _maze[i].cellNum;
+    if (nc != i) {
+      std::cerr << "Warning: maze cell at index " << i
+		<<" has cellNum of " << nc << std::endl;
+    }
+    std::cout << "Cell " << i << " has neighbor cells: ";
+    neighbor_t nbs = _maze[i].neighbors;
+    //    int n0, n1, n2, n3;
+    if ( nbs[0] >= 0 ) std::cout << nbs[0] << " ";
+    if ( nbs[1] >= 0 ) std::cout << nbs[1] << " ";
+    if ( nbs[2] >= 0 ) std::cout << nbs[2] << " ";
+    if ( nbs[3] >= 0 ) std::cout << nbs[3] << " ";
+    std::cout << std::endl;
+  }
+}
+
+std::vector<int> Maze::solve() const {
+  // IMPLEMENT THE SOLVE METHOD
+  if (_maze == nullptr) {
+    throw std::domain_error("Maze::solve: attempt to solve an empty maze.");
+  }
+
+  //make copy of maze.
+  bool boolean = false;
+  std::cout << "Finding Solution..." << std::endl;
+  //solution vector.
+  std::vector <int> solution;
+  
+  cell_t copyMaze[_ncell];
+  for(int i = 0; i < _ncell; i++){
+    copyMaze[i] = _maze[i];
+  }
+  //create new stack that we will be pushing and popping to.
+  SolveStack newStack;
+  src_dest_t origin;
+  origin.first = VACANT;
+  origin.second =  0;
+
+  //int count = 0;
+  //push in the origin to the stack.
+  newStack.push(origin);
+  //red the top of the stack.
+  src_dest_t nextSol = newStack.read();
+  //loop through as long as the stack is not empty and it hasn't reached the end of solution.
+  while((newStack.empty() == false) && (newStack.read().second != _ncell - 1)){
+    //count++;
+    
+    //flag is true
+    boolean = true;
+    // set this variable to use in for loop instead of 4.
+    neighbor_t mazeSize = copyMaze[newStack.read().second].neighbors;
+    //loop through the contents of the maze (the neighbors)
+    for(int i = 0; i < mazeSize.size(); i++){
+      //if the neighbor is not -1 and its not the previous number.
+      if((copyMaze[newStack.read().second].neighbors[i] != VACANT) && (copyMaze[newStack.read().second].neighbors[i] != newStack.read().first)){
+	//read the top of the stack. (update read()).
+	nextSol = newStack.read();
+	//create a pair that will be pushed onto the stack.
+	src_dest_t pushPair;
+	pushPair.first = nextSol.second;
+	pushPair.second = copyMaze[nextSol.second].neighbors[i];
+	//push the pair onto the stack and set flag to false.
+	newStack.push(pushPair);
+	boolean = false;
+	//exit loop.
+	break;	
+      }
+    } 
+    //if needing to pop from stack.
+    //boolean = false;
+    if (boolean){
+      std::cout << "ABOUT TO POP" << std::endl;
+      //loop through the neighbors
+      src_dest_t popStorage = newStack.pop();
+      for( int i = 0; i < mazeSize.size(); i++){
+	//if the neighbors are not a part of the solution set them to -1. 
+	if(copyMaze[popStorage.first].neighbors[i] == popStorage.second){
+	  copyMaze[popStorage.first].neighbors[i] = VACANT;
+
+	}
+      }
+    }	
+  }
+  //if theres no solution, exit
+  //std::cout << "CHECKING IF EMPTY" << std::endl;
+  if(newStack.empty()){
+    std::cout << "No Solution Found." << std::endl;
+    return solution;
+  }
+
+  SolveStack finalReverseStack;
+  while(!newStack.empty()){ 
+    src_dest_t callPop = newStack.pop();
+    //push the contents onto a new maze so they can print in reverse.
+    finalReverseStack.push(callPop);
+    
+  }
+  //loop through the reverse stack and push the contents onto the vector.
+  while(!finalReverseStack.empty()){
+    src_dest_t finalPop = finalReverseStack.pop();
+    solution.push_back(finalPop.second);
+
+  }
+  // return the vector.
+  std::cout << "Solution Found! " << std::endl;  
+  return solution;
+  
+}
+
+
+Maze::SolveStack::SolveStack() {
+  _stack = nullptr;
+}
+
+Maze::SolveStack::~SolveStack() {
+  // IMPLEMENT DESTRUCTOR
+  //create stackentries that point to the head.
+  StackEntry *curr = _stack;
+  StackEntry *temp = _stack;
+  //delete all the contents of the stack
+  while(curr !=  NULL){
+    curr = temp -> next;
+    delete temp;
+    temp = curr;
+  }
+  //set it to null
+  _stack = nullptr;
+  
+  //  delete _stack;
+}
+
+bool Maze::SolveStack::empty() const {
+  return _stack == nullptr;
+}
+				   
+void Maze::SolveStack::push(src_dest_t src_dest) {
+  // IMPLEMENT PUSH METHOD
+  //create a new entry.
+  entry_t *coordinateTwo = new entry_t(src_dest);
+  //set the new entry as the top of the stack
+  coordinateTwo -> next = _stack;
+  //make the previous head the second node on the stack.
+  _stack = coordinateTwo;
+
+}
+
+src_dest_t Maze::SolveStack::pop() {
+  //IMPLEMENT POP METHOD
+  if (empty() == true){
+    throw std::domain_error("Maze::SolveStack::pop(): popping from an empty stack");
+  }
+  //create a new node and set it to the head.
+  entry_t *newTop = _stack;
+  src_dest_t newData;
+  //set the second node as the head and delete the first one.
+  newData = newTop -> src_dest;
+  //the second node on the stack is now the head.
+  _stack = _stack->next;
+  //delete the previous head..
+  delete newTop;  
+  return newData; 
+}
+
+src_dest_t Maze::SolveStack::read() const {
+  //IMPLEMENT READ METHOD
+  if (empty() == true){
+    throw std::domain_error("Maze::SolveStack::read(): reading from an empty stack");
+  }
+  //  if(_stack == nullptr){
+  // std::cout << "EMPTY STACK" << std::endl;
+  // }
+  //return the top of the stack.
+  return _stack->src_dest;
+}
+
+
